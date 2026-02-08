@@ -128,7 +128,7 @@ class KotiDashboardApp(App):
             Window.fullscreen = False
             Window.borderless = False
 
-        Builder.load_file(str(BASE_DIR / "ui" / "dashboard_V1.kv"))
+        Builder.load_file(str(BASE_DIR / "dashboard_V1.kv"))
         return DashboardRoot(config)
 
 
