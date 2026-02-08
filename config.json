@@ -1,0 +1,8 @@
+{
+  "app_name": "KotiApp",
+  "location_name": "Helsinki",
+  "weather_update_minutes": 30,
+  "fullscreen": false,
+  "debug": true
+}
+
