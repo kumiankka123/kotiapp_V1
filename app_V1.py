@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 from datetime import datetime
 
 from kivy.app import App
@@ -10,6 +12,32 @@ from kivy.uix.floatlayout import FloatLayout
 
 from weather import WeatherService
 
+BASE_DIR = Path(__file__).parent
+
+
+def load_or_create_config():
+    config_path = BASE_DIR / "config.json"
+    example_path = BASE_DIR / "config.example.json"
+
+    if not config_path.exists():
+        if example_path.exists():
+            with open(example_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+        else:
+            cfg = {
+                "city": "Helsinki",
+                "weather_update_minutes": 30,
+                "screensaver_seconds": 30,
+                "fullscreen": False,
+                "debug": False,
+            }
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 
 class DashboardRoot(FloatLayout):
     time_text = StringProperty("--:--:--")
@@ -18,7 +46,6 @@ class DashboardRoot(FloatLayout):
     calendar_text = StringProperty("Kalenteri: (placeholder)")
     shopping_text = StringProperty("Ostoslista:\n- maito\n- kahvi\n- banaani")
     debug_mode = BooleanProperty(False)
-
     screensaver_active = BooleanProperty(False)
 
     def __init__(self, config: dict, **kwargs):
@@ -39,10 +66,7 @@ class DashboardRoot(FloatLayout):
         self._idle_seconds = float(config.get("screensaver_seconds", 30))
         self._idle_ev = None
 
-        # Tärkeä: bindaa kosketukset koko ikkunaan
         Window.bind(on_touch_down=self._on_any_input)
-
-        # Käynnistä idle laskuri
         Clock.schedule_once(lambda *_: self._reset_idle_timer(), 0)
 
     def _tick_clock(self, _dt):
@@ -50,14 +74,12 @@ class DashboardRoot(FloatLayout):
         self.time_text = now.strftime("%H:%M:%S")
         self.date_text = now.strftime("%a %d.%m.%Y")
 
-        # Päivitä screensaverin iso kello jos se on päällä
         if self.screensaver_active:
             try:
                 self.ids.screensaver.ids.bigclock.text = now.strftime("%H:%M")
             except Exception:
                 pass
 
-    # -------- Screensaver-metodit --------
     def _reset_idle_timer(self):
         if self._idle_ev is not None:
             self._idle_ev.cancel()
@@ -69,13 +91,6 @@ class DashboardRoot(FloatLayout):
         ss.disabled = False
         ss.opacity = 1
 
-        # Päivitä teksti heti
-        now = datetime.now()
-        try:
-            ss.ids.bigclock.text = now.strftime("%H:%M")
-        except Exception:
-            pass
-
     def _deactivate_screensaver(self):
         self.screensaver_active = False
         ss = self.ids.screensaver
@@ -83,21 +98,16 @@ class DashboardRoot(FloatLayout):
         ss.disabled = True
 
     def _on_any_input(self, _window, touch):
-        # Jos screensaver päällä: sulje se ja syö tämä kosketus (ei vahinkopainallusta nappiin)
         if self.screensaver_active:
             self._deactivate_screensaver()
             self._reset_idle_timer()
             return True
 
-        # Muuten vain nollaa idle
         self._reset_idle_timer()
         return False
 
-    # -------- Data-päivitykset --------
     def _update_all(self):
         self._update_weather()
-        # self._update_calendar()
-        # self._update_shopping()
 
     def _update_weather(self):
         try:
@@ -105,19 +115,11 @@ class DashboardRoot(FloatLayout):
         except Exception as e:
             self.weather_text = f"Sää: virhe ({e.__class__.__name__})"
 
-    def on_send_shopping(self):
-        # Turvallinen placeholder ettei kaadu testissä
-        self.shopping_text = self.shopping_text + "\n\n(placeholder: ei vielä käytössä)"
-
-    def toggle_fullscreen(self):
-        Window.fullscreen = not bool(Window.fullscreen)
-        Window.borderless = bool(Window.fullscreen)
-
 
 class KotiDashboardApp(App):
     def build(self):
-        with open("config.json", "r", encoding="utf-8") as f:
-            config = json.load(f)
+        config = load_or_create_config()
+        self.config_data = config
 
         if config.get("fullscreen", False):
             Window.fullscreen = True
@@ -126,7 +128,7 @@ class KotiDashboardApp(App):
             Window.fullscreen = False
             Window.borderless = False
 
-        Builder.load_file("ui/dashboard_V1.kv")
+        Builder.load_file(str(BASE_DIR / "ui" / "dashboard_V1.kv"))
         return DashboardRoot(config)
 
 
